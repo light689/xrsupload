@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>学而思文件上传器</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mdui@1.0.1/dist/css/mdui.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/mdui@1.0.1/dist/js/mdui.min.js"></script>
+</head>
+<body class="mdui-theme-primary-indigo mdui-theme-accent-pink">
+    <div class="mdui-container">
+        <h1 class="mdui-text-center mdui-typo-display-2">学而思文件上传器</h1>
+        <div class="mdui-textfield">
+            <input class="mdui-textfield-input" type="file" id="fileInput" />
+        </div>
+        <button class="mdui-btn mdui-btn-raised mdui-ripple mdui-color-theme-accent" onclick="uploadFile()">上传</button>
+        <div id="result" class="mdui-typo"></div>
+    </div>
+
+    <script>
+    // 计算文件的MD5值
+    async function calculateMD5(file) {
+        const buffer = await file.arrayBuffer();
+        const hashBuffer = await crypto.subtle.digest('MD5', buffer);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    // 获取上传参数
+    async function getUploadParams(filename, md5) {
+        const url = `https://code.xueersi.com/api/assets/get_oss_upload_params?scene=offline_python_assets&md5=${md5}&filename=${encodeURIComponent(filename)}`;
+        const response = await fetch(url);
+        const data = await response.json();
+        return data.data;
+    }
+
+    // 上传文件
+    async function uploadFile() {
+        const fileInput = document.getElementById('fileInput');
+        const file = fileInput.files[0];
+        
+        if (!file) {
+            mdui.snackbar({message: '请选择文件'});
+            return;
+        }
+
+        try {
+            // 计算MD5
+            const md5 = await calculateMD5(file);
+            
+            // 获取上传参数
+            const uploadParams = await getUploadParams(file.name, md5);
+            
+            // 上传文件
+            const response = await fetch(uploadParams.host, {
+                method: 'PUT',
+                headers: uploadParams.headers,
+                body: file
+            });
+
+            if (response.ok) {
+                const url = uploadParams.url;
+                document.getElementById('result').innerHTML = `<p>上传成功，URL: <a href="${url}" target="_blank">${url}</a></p>`;
+                mdui.snackbar({message: '上传成功，URL已复制到剪贴板'});
+                navigator.clipboard.writeText(url);
+            } else {
+                throw new Error('上传失败');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            mdui.snackbar({message: '上传失败：' + error.message});
+        }
+    }
+    </script>
+</body>
+</html>
